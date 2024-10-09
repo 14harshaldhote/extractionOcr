@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { transition: transform 0.3s; }
+        .card:hover { transform: translateY(-5px); }
+
+        /* Custom Styles for Loading Bar */
+        #loadingBar {
+            width: 100%;
+            height: 20px;
+            background-color: #f1f1f1;
+            border-radius: 10px;
+            display: none; /* Initially hidden */
+        }
+
+        #progress {
+            height: 100%;
+            width: 0;
+            background-color: #4caf50;
+            border-radius: 10px;
+        }
+
+        /* Styling the time message */
+        #timeMessage {
+            margin-top: 10px;
+            font-size: 1.1em;
+            color: #555;
+        }
+
+        /* Button hover color customization */
+        #uploadButton:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
+
+        /* Styling the form control when a file is selected */
+        .form-control:valid {
+            border-color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-5">Document Management System</h1>
+        
+        <!-- Upload Form -->
+        <div class="row mb-5">
+            <div class="col-md-6 offset-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Upload Folder</h5>
+						<form id="uploadForm" enctype="multipart/form-data">
+						    <div class="mb-3">
+						        <input type="file" name="folder" webkitdirectory class="form-control" onchange="enableUploadButton()" />
+						    </div>
+						    <button type="submit" class="btn btn-primary" id="uploadButton" disabled>
+						        <i class="fas fa-upload me-2"></i>Upload
+						    </button>
+						</form>
+
+
+
+                        <!-- Loading Bar -->
+                        <div id="loadingBar" class="mt-3">
+                            <div id="progress"></div>
+                        </div>
+
+                        <!-- Processing Time -->
+                        <div id="timeMessage" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Dropdowns -->
+        <div class="row mb-5">
+            <div class="col-md-6">
+                <select id="projectFilter" class="form-select" onchange="filterTable()">
+                    <option value="">Select Project</option>
+                    <!-- Project options will be dynamically populated -->
+                </select>
+            </div>
+            <div class="col-md-6">
+                <select id="batchFilter" class="form-select" onchange="filterTable()">
+                    <option value="">Select Batch</option>
+                    <!-- Batch options will be dynamically populated -->
+                </select>
+            </div>
+        </div>
+
+        <!-- Uploaded Documents Table -->
+        <h2 class="mb-4">Uploaded Documents</h2>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>File Name</th>
+                    <th>Project Name</th>
+                    <th>Batch Name</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="documentsTableBody">
+                <!-- Documents will be dynamically inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+    <script>
+        let allDocuments = []; // Store all documents for filtering
+
+        // Fetch and display documents
+        async function fetchDocuments() {
+            const response = await fetch('/api/documents');
+            allDocuments = await response.json(); // Save fetched documents to global variable
+            const documentsTableBody = document.getElementById('documentsTableBody');
+            const projectFilter = document.getElementById('projectFilter');
+            const batchFilter = document.getElementById('batchFilter');
+
+            documentsTableBody.innerHTML = '';
+            const projects = new Set(); // To hold unique project names
+            const batches = new Set(); // To hold unique batch names
+
+            allDocuments.forEach(doc => {
+                documentsTableBody.innerHTML += `
+                    <tr>
+                        <td>${doc.fileName}</td>
+                        <td>${doc.projectName || 'N/A'}</td>
+                        <td>${doc.batchName || 'N/A'}</td>
+                        <td>
+                            <a href="/documents/${doc.id}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-eye me-2"></i>View Details
+                            </a>
+                        </td>
+                    </tr>
+                `;
+
+                projects.add(doc.projectName);
+                batches.add(doc.batchName);
+            });
+
+            // Populate filters dynamically
+            projectFilter.innerHTML = `<option value="">Select Project</option>${Array.from(projects).map(p => `<option value="${p}">${p}</option>`).join('')}`;
+            batchFilter.innerHTML = `<option value="">Select Batch</option>${Array.from(batches).map(b => `<option value="${b}">${b}</option>`).join('')}`;
+        }
+
+        // Filter documents based on selected project and batch
+        function filterTable() {
+            const projectFilter = document.getElementById('projectFilter').value;
+            const batchFilter = document.getElementById('batchFilter').value;
+
+            const filteredDocs = allDocuments.filter(doc => {
+                return (projectFilter ? doc.projectName === projectFilter : true) &&
+                       (batchFilter ? doc.batchName === batchFilter : true);
+            });
+
+            const documentsTableBody = document.getElementById('documentsTableBody');
+            documentsTableBody.innerHTML = '';
+
+            filteredDocs.forEach(doc => {
+                documentsTableBody.innerHTML += `
+                    <tr>
+                        <td>${doc.fileName}</td>
+                        <td>${doc.projectName || 'N/A'}</td>
+                        <td>${doc.batchName || 'N/A'}</td>
+                        <td>
+                            <a href="/documents/${doc.id}" class="btn btn-primary btn-sm">
+                                <i class="fas fa-eye me-2"></i>View Details
+                            </a>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        // Handle the file upload with a progress bar and time calculation
+        const uploadForm = document.getElementById("uploadForm");
+        const uploadButton = document.getElementById("uploadButton");
+        const loadingBar = document.getElementById("loadingBar");
+        const progress = document.getElementById("progress");
+        const timeMessage = document.getElementById("timeMessage");
+
+		uploadForm.onsubmit = async function (event) {
+		    event.preventDefault();  // Prevent default form submission behavior
+		    
+		    const formData = new FormData();  // Create a new FormData instance
+
+		    const selectedFiles = uploadForm.querySelector('input[type="file"]').files;  // Get the file input
+		    
+		    // Append each selected file to the FormData object with the 'folder' key
+		    for (let i = 0; i < selectedFiles.length; i++) {
+		        formData.append('folder', selectedFiles[i]);  // 'folder' is the key expected in the backend
+		    }
+
+		    const startTime = Date.now();  // Record the start time
+
+		    // Show the loading bar
+		    loadingBar.style.display = "block";
+		    progress.style.width = "0%";  // Reset the progress bar to 0
+
+		    try {
+		        const response = await fetch("/uploadFolder", {
+		            method: "POST",
+		            body: formData  // Send FormData with 'folder' as the key
+		        });
+
+		        if (response.ok) {
+		            const reader = response.body.getReader();
+		            const contentLength = +response.headers.get('Content-Length');
+		            let receivedLength = 0;
+
+		            reader.read().then(function processText({ done, value }) {
+		                if (done) {
+		                    return;
+		                }
+
+		                receivedLength += value.length;
+		                const percentage = (receivedLength / contentLength) * 100;
+		                progress.style.width = percentage + "%";
+
+		                reader.read().then(processText);
+		            });
+
+		            const endTime = Date.now();
+		            const duration = (endTime - startTime) / 1000; // Time in seconds
+		            timeMessage.innerText = `Uploaded in ${duration} seconds.`;
+		            fetchDocuments(); // Re-fetch the document list after upload
+		        } else {
+		            alert("Error uploading files");
+		        }
+		    } catch (error) {
+		        console.error("Upload error:", error);
+		        alert("An error occurred while uploading files.");
+		    }
+		};
+
+        // Enable the upload button when a file is selected
+        function enableUploadButton() {
+            const fileInput = document.querySelector('input[type="file"]');
+            if (fileInput.files.length > 0) {
+                uploadButton.disabled = false;  // Enable the upload button
+            } else {
+                uploadButton.disabled = true;  // Disable the button if no file is selected
+            }
+        }
+
+        // Fetch documents when the page loads
+        fetchDocuments();
+    </script>
+</body>
+</html>

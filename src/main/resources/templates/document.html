@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Details</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .container { max-width: 1200px; }
+        .row { height: 100%; }
+        .image-area { 
+            position: relative; 
+            overflow: auto; 
+            padding: 20px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+        }
+        .img-fluid { 
+            transition: transform 0.2s; 
+            cursor: move; /* Show move cursor */
+        }
+        .zoom-controls { 
+            position: absolute; 
+            top: 10px; 
+            right: 10px; 
+            z-index: 10; 
+        }
+        .zoom-in { transform: scale(1.2); }
+        .zoom-out { transform: scale(0.8); }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-5">Document Details</h1>
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body image-area">
+                        <h5 class="card-title">Image</h5>
+                        <div class="zoom-controls">
+                            <button class="btn btn-sm btn-outline-primary" id="zoomIn">Zoom In</button>
+                            <button class="btn btn-sm btn-outline-primary" id="zoomOut">Zoom Out</button>
+                        </div>
+                        <img id="documentImage" class="img-fluid" alt="Document Image" loading="lazy" onerror="this.src='fallback-image-url.jpg';"/>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Document Information</h5>
+                        <p><strong>Project Name:</strong> <span id="projectName">Loading...</span></p>
+                        <p><strong>Batch Name:</strong> <span id="batchName">Loading...</span></p>
+                        <p><strong>File Name:</strong> <span id="fileName">Loading...</span></p>
+                        <h5 class="mt-4">OCR Extracted Text</h5>
+                        <pre id="ocrText">Loading...</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <a href="/" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-2"></i>Back to Document List
+        </a>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.6/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+    <script>
+        const placeholderImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==';
+
+        // Get the document ID from the URL
+        const urlPath = window.location.pathname;
+        const docId = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+        
+        if (docId) {
+            fetchDocument(docId); // Fetch document details when the ID is available
+        }
+
+        // Fetch document details including the image
+        async function fetchDocument(id) {
+            try {
+                const response = await fetch(`/api/documents/${id}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch document details');
+                }
+                const docData = await response.json();
+
+                // Set the image source
+                const imageElement = document.getElementById('documentImage');
+
+                // Fetch the image separately
+                const imageResponse = await fetch(`/api/images/${id}`);
+                if (imageResponse.ok) {
+                    const imageBlob = await imageResponse.blob(); // Get the image as a blob
+                    const imageObjectURL = URL.createObjectURL(imageBlob); // Create a URL for the blob
+                    imageElement.src = imageObjectURL; // Set the image source
+                } else {
+                    imageElement.src = placeholderImage; // Fallback placeholder
+                    console.error('Failed to load image:', imageResponse.statusText);
+                }
+
+                // Populate document information
+                document.getElementById('projectName').textContent = docData.projectName || 'N/A';
+                document.getElementById('batchName').textContent = docData.batchName || 'N/A';
+                document.getElementById('fileName').textContent = docData.fileName || 'N/A';
+                document.getElementById('ocrText').textContent = docData.ocrText || 'No OCR text available';
+            } catch (error) {
+                console.error('Error fetching document:', error);
+                document.getElementById('ocrText').textContent = 'Failed to load document details.';
+                document.getElementById('documentImage').src = placeholderImage;
+                document.getElementById('documentImage').alt = 'Image not available';
+            }
+        }
+
+        // Zoom functionality
+        const imageElement = document.getElementById('documentImage');
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            imageElement.classList.add('zoom-in');
+            imageElement.classList.remove('zoom-out');
+        });
+
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            imageElement.classList.add('zoom-out');
+            imageElement.classList.remove('zoom-in');
+        });
+
+        // Drag functionality
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        imageElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.pageX - imageElement.offsetLeft;
+            startY = e.pageY - imageElement.offsetTop;
+            scrollLeft = imageElement.scrollLeft;
+            scrollTop = imageElement.scrollTop;
+        });
+
+        imageElement.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        imageElement.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        imageElement.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.pageX - imageElement.offsetLeft;
+            const y = e.pageY - imageElement.offsetTop;
+            const walkX = (x - startX) * 1; // Adjust the drag speed
+            const walkY = (y - startY) * 1; // Adjust the drag speed
+            imageElement.scrollLeft = scrollLeft - walkX;
+            imageElement.scrollTop = scrollTop - walkY;
+        });
+
+    </script>
+</body>
+</html>
